@@ -14,7 +14,8 @@ let session = {
 
 // Placeholder quick-test prompts (replace with your real text)
 const QUICK_TEST_PROMPTS = {
-    placeOrder: "I want 2 burgers and 1 soda in Madrid for tomorrow at 8pm. I am Juan with j@gmail.com as my email.",
+    placeOrder:
+        "I want 2 burgers and 1 soda in Madrid for tomorrow at 8pm. I am Juan with j@gmail.com as my email.",
     checkStatus: "I want to check the status of my order.",
     cancelOrder: "I want to cancel my order.",
 };
@@ -85,6 +86,13 @@ function addTypingIndicator() {
 function removeTypingIndicator(typingEl) {
     if (typingEl && typingEl.parentNode)
         typingEl.parentNode.removeChild(typingEl);
+}
+
+function focusInput() {
+    // Pequeño delay para asegurar que el DOM ya está re-habilitado
+    setTimeout(() => {
+        userInput.focus();
+    }, 0);
 }
 
 // --- UI UPDATER ---
@@ -570,6 +578,7 @@ async function handleSend(textOverride = null) {
     } finally {
         removeTypingIndicator(typingEl);
         setControlsDisabled(false);
+        focusInput();
     }
 }
 
@@ -589,6 +598,7 @@ async function sendMessageProgrammatically(text) {
 
     // Reuse the same handler
     handleSend(msg);
+    focusInput();
 }
 
 function resetConversationUI() {
