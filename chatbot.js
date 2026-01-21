@@ -12,12 +12,27 @@ let session = {
     expecting: null,
 };
 
+// Placeholder quick-test prompts (replace with your real text)
+const QUICK_TEST_PROMPTS = {
+    placeOrder: "I want 2 burgers and 1 soda in Madrid for tomorrow at 8pm. I am Juan with j@gmail.com as my email.",
+    checkStatus: "I want to check the status of my order.",
+    cancelOrder: "I want to cancel my order.",
+};
+
+let isBotBusy = false;
+
 /* =========================================
    2. DOM ELEMENTS & UI HELPERS
    ========================================= */
 const chatHistory = document.getElementById("chat-history");
 const userInput = document.getElementById("user-input");
 const sendBtn = document.getElementById("send-btn");
+
+// Quick test buttons
+const btnQTPlaceOrder = document.getElementById("qt-place-order");
+const btnQTCheckStatus = document.getElementById("qt-check-status");
+const btnQTCancelOrder = document.getElementById("qt-cancel-order");
+const btnQTReset = document.getElementById("qt-reset");
 
 // UI Elements for Order Preview
 const elCartList = document.getElementById("cart-list");
@@ -27,7 +42,7 @@ const elName = document.getElementById("display-name");
 const elEmail = document.getElementById("display-email");
 const elStatusBadge = document.getElementById("order-status-badge");
 
-// NEW: ID Elements
+// ID Elements
 const elRowId = document.getElementById("row-order-id");
 const elDisplayId = document.getElementById("display-id");
 
@@ -37,6 +52,39 @@ function addMessage(text, sender) {
     div.innerText = text;
     chatHistory.appendChild(div);
     chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+function setControlsDisabled(disabled) {
+    isBotBusy = disabled;
+
+    // Disable input + send
+    userInput.disabled = disabled;
+    sendBtn.disabled = disabled;
+
+    // Disable quick-test buttons
+    if (btnQTPlaceOrder) btnQTPlaceOrder.disabled = disabled;
+    if (btnQTCheckStatus) btnQTCheckStatus.disabled = disabled;
+    if (btnQTCancelOrder) btnQTCancelOrder.disabled = disabled;
+    if (btnQTReset) btnQTReset.disabled = disabled;
+
+    // Optional visual cue (if you added CSS for .bot-busy)
+    document.body.classList.toggle("bot-busy", disabled);
+}
+
+// Typing indicator helpers
+function addTypingIndicator() {
+    const typing = document.createElement("div");
+    typing.className = "message bot-message";
+    typing.innerText = "...";
+    typing.dataset.typing = "true";
+    chatHistory.appendChild(typing);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    return typing;
+}
+
+function removeTypingIndicator(typingEl) {
+    if (typingEl && typingEl.parentNode)
+        typingEl.parentNode.removeChild(typingEl);
 }
 
 // --- UI UPDATER ---
@@ -88,6 +136,7 @@ function updateUI() {
 function validateTime(isoString) {
     if (!isoString)
         return { valid: false, msg: "I couldn't detect a valid date." };
+
     const now = new Date();
     const orderTime = new Date(isoString);
     if (isNaN(orderTime.getTime()))
@@ -113,24 +162,18 @@ function canCancel(isoString) {
    ========================================= */
 
 async function callCLU(query) {
-    try {
-        const res = await fetch("/api/clu", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: query }),
-        });
+    const res = await fetch("/api/clu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: query }),
+    });
 
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err?.error || "CLU proxy error");
-        }
-
-        // Este JSON es el mismo que devolvía Azure (o muy parecido)
-        return await res.json();
-    } catch (e) {
-        console.error(e);
-        return null;
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "CLU proxy error");
     }
+
+    return await res.json();
 }
 
 /* =========================================
@@ -160,6 +203,8 @@ function extractData(entities) {
         const txt = ent.text;
         const cat = ent.category;
 
+        if (!txt || !cat) return;
+
         if (cat === "City") {
             if (!isName(txt)) extracted.city = txt;
         } else if (cat === "Location" && !extracted.city) {
@@ -167,7 +212,7 @@ function extractData(entities) {
         } else if (cat === "Email") extracted.email = txt;
         else if (cat === "PersonName" || cat === "Name") extracted.name = txt;
         else if (cat === "Product")
-            products.push({ name: txt, offset: ent.offset });
+            products.push({ name: txt, offset: ent.offset ?? 999999 });
         else if (cat === "DateTime") {
             const val =
                 ent.resolutions && ent.resolutions[0]
@@ -179,7 +224,8 @@ function extractData(entities) {
                 ent.resolutions && ent.resolutions[0]
                     ? Number(ent.resolutions[0].value)
                     : Number(txt);
-            if (!isNaN(val)) quantities.push({ val: val, offset: ent.offset });
+            if (!isNaN(val))
+                quantities.push({ val: val, offset: ent.offset ?? 999999 });
         }
     });
 
@@ -450,12 +496,14 @@ function advanceFlow() {
         session.expecting = "datetime";
         return "When do you want to pick it up? (e.g., Tomorrow at 8pm)";
     }
+
     const timeCheck = validateTime(o.datetime.value);
     if (!timeCheck.valid) {
         o.datetime = null;
         session.expecting = "datetime";
         return `⚠️ ${timeCheck.msg} Please provide a valid time.`;
     }
+
     if (!o.name) {
         session.expecting = "name";
         return "What is the name for the order?";
@@ -492,30 +540,104 @@ function resetSession() {
    7. EVENT HANDLERS
    ========================================= */
 
-sendBtn.addEventListener("click", async () => {
-    const text = userInput.value.trim();
+async function handleSend(textOverride = null) {
+    if (isBotBusy) return;
+
+    const text = (textOverride ?? userInput.value).trim();
     if (!text) return;
 
     addMessage(text, "user");
     userInput.value = "";
 
-    const typing = document.createElement("div");
-    typing.className = "message bot-message";
-    typing.innerText = "...";
-    chatHistory.appendChild(typing);
+    setControlsDisabled(true);
+    const typingEl = addTypingIndicator();
 
-    const apiResponse = await callCLU(text);
+    try {
+        const apiResponse = await callCLU(text);
 
-    chatHistory.removeChild(typing);
+        if (apiResponse?.result?.prediction) {
+            const pred = apiResponse.result.prediction;
+            const reply = processTurn(pred.topIntent, pred.entities, text);
+            addMessage(reply, "bot");
+        } else {
+            addMessage("Sorry, I couldn't understand that.", "bot");
+        }
 
-    if (apiResponse?.result?.prediction) {
-        const pred = apiResponse.result.prediction;
-        const reply = processTurn(pred.topIntent, pred.entities, text);
-        addMessage(reply, "bot");
+        updateUI();
+    } catch (err) {
+        console.error(err);
+        addMessage("There was an error contacting the service.", "bot");
+    } finally {
+        removeTypingIndicator(typingEl);
+        setControlsDisabled(false);
     }
-    updateUI();
-});
+}
+
+sendBtn.addEventListener("click", () => handleSend());
 
 userInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") sendBtn.click();
+    if (e.key === "Enter") handleSend();
 });
+
+async function sendMessageProgrammatically(text) {
+    const msg = (text || "").trim();
+    if (!msg) return;
+    if (isBotBusy) return;
+
+    // Put it in the input (optional)
+    userInput.value = msg;
+
+    // Reuse the same handler
+    handleSend(msg);
+}
+
+function resetConversationUI() {
+    if (isBotBusy) return;
+
+    // Reset internal session
+    resetSession();
+
+    // Clear chat history
+    chatHistory.innerHTML = "";
+
+    // Add the initial bot message again
+    addMessage(
+        "Hello! I can help you order food, track an order, or give recommendations.",
+        "bot",
+    );
+
+    // Clear input
+    userInput.value = "";
+
+    // Refresh right-side summary panel
+    updateUI();
+}
+
+btnQTPlaceOrder?.addEventListener("click", () => {
+    sendMessageProgrammatically(QUICK_TEST_PROMPTS.placeOrder);
+});
+
+btnQTCheckStatus?.addEventListener("click", () => {
+    sendMessageProgrammatically(QUICK_TEST_PROMPTS.checkStatus);
+});
+
+btnQTCancelOrder?.addEventListener("click", () => {
+    sendMessageProgrammatically(QUICK_TEST_PROMPTS.cancelOrder);
+});
+
+btnQTReset?.addEventListener("click", () => {
+    resetConversationUI();
+});
+
+/* =========================================
+   8. INIT
+   ========================================= */
+
+// Initial bot message (optional if your HTML already includes one)
+if (chatHistory && chatHistory.children.length === 0) {
+    addMessage(
+        "Hello! I can help you order food, track an order, or give recommendations.",
+        "bot",
+    );
+}
+updateUI();

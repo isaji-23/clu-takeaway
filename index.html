@@ -19,8 +19,14 @@
 			<div id="chat-history" class="chat-history">
 				<div class="message bot-message">Hello! I can help you order food, track an order, or give recommendations.</div>
 			</div>
+			<div class="action-bar">
+				<button id="qt-place-order" class="action-btn">Place order</button>
+				<button id="qt-check-status" class="action-btn">Check status</button>
+				<button id="qt-cancel-order" class="action-btn">Cancel order</button>
+				<button id="qt-reset" class="action-btn action-btn-danger">Reset</button>
+			</div>
 			<div class="input-area">
-				<input type="text" id="user-input" placeholder="Type a request (e.g., 'Order 2 pizzas')"
+				<input type="text" id="user-input" placeholder="Type a request (e.g., 'Order 2 burgers')"
 					autocomplete="off">
 				<button id="send-btn">Send</button>
 			</div>
