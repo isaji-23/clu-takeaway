@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Takeaway Assistant</title>
+	<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+	<div class="main-container">
+		<div class="chat-container">
+			<header class="chat-header">
+				<h1>Takeaway Assistant</h1>
+				<p>Simple. Fast. Delicious.</p>
+			</header>
+			<div id="chat-history" class="chat-history">
+				<div class="message bot-message">Hello! I can help you order food, track an order, or give recommendations.</div>
+			</div>
+			<div class="input-area">
+				<input type="text" id="user-input" placeholder="Type a request (e.g., 'Order 2 pizzas')"
+					autocomplete="off">
+				<button id="send-btn">Send</button>
+			</div>
+		</div>
+
+		<div class="info-panel">
+			<div class="order-card">
+				<div class="card-header">
+					<h2>Live Order Summary</h2>
+					<span id="order-status-badge" class="badge">Draft</span>
+				</div>
+
+				<div class="card-section">
+					<h3>Cart Items</h3>
+					<ul id="cart-list" class="cart-list">
+						<li class="empty-state">Your cart is empty</li>
+					</ul>
+				</div>
+
+				<div class="card-section">
+					<h3>Details</h3>
+
+					<div class="detail-row" id="row-order-id" style="display: none;">
+						<span class="label">Order #</span>
+						<span id="display-id" class="value" style="color: var(--primary-color);">---</span>
+					</div>
+
+					<div class="detail-row">
+						<span class="label">Location</span>
+						<span id="display-city" class="value">---</span>
+					</div>
+					<div class="detail-row">
+						<span class="label">Time</span>
+						<span id="display-time" class="value">---</span>
+					</div>
+					<div class="detail-row">
+						<span class="label">Name</span>
+						<span id="display-name" class="value">---</span>
+					</div>
+					<div class="detail-row">
+						<span class="label">Email</span>
+						<span id="display-email" class="value">---</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="chatbot.js"></script>
+</body>
+
+</html>
